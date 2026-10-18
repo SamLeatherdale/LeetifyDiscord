@@ -3,6 +3,7 @@ using ArchiSteamFarm.Core;
 using ArchiSteamFarm.Plugins.Interfaces;
 using ArchiSteamFarm.Steam;
 using ArchiSteamFarm.Steam.Storage;
+using SteamKit2;
 
 namespace LeetifyDiscord;
 
@@ -50,7 +51,7 @@ public sealed class LeetifyDiscordPlugin : IBotCommand2, IBotMessage {
 		ArgumentNullException.ThrowIfNull(bot);
 		ArgumentException.ThrowIfNullOrEmpty(message);
 
-		if ((_discord == null) || (steamID != _configuration.LeetifySteamId)) {
+		if ((_discord == null) || !_configuration.Accepts(steamID)) {
 			return null;
 		}
 
@@ -66,7 +67,7 @@ public sealed class LeetifyDiscordPlugin : IBotCommand2, IBotMessage {
 					}
 				}
 
-				bool posted = await _discord.PostAsync(MatchReport.Create(link.Url, match)).ConfigureAwait(false);
+				bool posted = await _discord.PostAsync(MatchReport.Create(link.Url, match, bot.SteamID, candidate => IsSteamFriend(bot, candidate))).ConfigureAwait(false);
 
 				if (posted) {
 					bot.ArchiLogger.LogGenericInfo($"LeetifyDiscord posted {link.Url}.");
@@ -82,6 +83,8 @@ public sealed class LeetifyDiscordPlugin : IBotCommand2, IBotMessage {
 
 		return null;
 	}
+
+	private static bool IsSteamFriend(Bot bot, ulong steamId) => (steamId != 0) && (steamId != bot.SteamID) && (bot.SteamFriends.GetFriendRelationship(steamId) == EFriendRelationship.Friend);
 
 	public Task OnLoaded() {
 		_httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("LeetifyDiscord/1.0");
@@ -106,7 +109,9 @@ public sealed class LeetifyDiscordPlugin : IBotCommand2, IBotMessage {
 			ASF.ArchiLogger.LogGenericInfo("LeetifyDiscord will post match links only.");
 		}
 
-		ASF.ArchiLogger.LogGenericInfo($"LeetifyDiscord is listening for SteamID {_configuration.LeetifySteamId}.");
+		string extra = _configuration.ExtraSteamId is ulong extraSteamId ? $" and {extraSteamId.ToString(System.Globalization.CultureInfo.InvariantCulture)}" : "";
+
+		ASF.ArchiLogger.LogGenericInfo($"LeetifyDiscord is listening for SteamID {PluginConfiguration.DefaultLeetifySteamId}{extra}.");
 
 		return Task.CompletedTask;
 	}

@@ -15,7 +15,7 @@ public sealed class PluginConfiguration {
 
 	public string? LeetifyApiKey { get; private init; }
 
-	public ulong LeetifySteamId { get; private init; }
+	public ulong? ExtraSteamId { get; private init; }
 
 	public IReadOnlyList<string> Warnings { get; private init; } = [];
 
@@ -38,24 +38,26 @@ public sealed class PluginConfiguration {
 			apiKey = null;
 		}
 
-		ulong steamId = DefaultLeetifySteamId;
+		ulong? extraSteamId = null;
 		string? steamText = environment(SteamIdVariable)?.Trim();
 
 		if (!string.IsNullOrEmpty(steamText)) {
 			if (!ulong.TryParse(steamText, NumberStyles.None, CultureInfo.InvariantCulture, out ulong parsed) || !IsIndividualAccount(parsed)) {
-				warnings.Add($"{SteamIdVariable} is not a SteamID64. Using the Leetify bot.");
-			} else {
-				steamId = parsed;
+				warnings.Add($"{SteamIdVariable} is not a SteamID64. Listening for the Leetify bot only.");
+			} else if (parsed != DefaultLeetifySteamId) {
+				extraSteamId = parsed;
 			}
 		}
 
 		return new PluginConfiguration {
 			WebhookUrl = webhook,
 			LeetifyApiKey = apiKey,
-			LeetifySteamId = steamId,
+			ExtraSteamId = extraSteamId,
 			Warnings = warnings
 		};
 	}
+
+	public bool Accepts(ulong steamId) => (steamId == DefaultLeetifySteamId) || (steamId == ExtraSteamId);
 
 	public static bool IsIndividualAccount(ulong steamId) {
 		// SteamID64 stores the account type in bits 52-55. Individual accounts use type 1.
