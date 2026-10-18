@@ -51,7 +51,7 @@ public sealed class LeetifyDiscordPlugin : IBotCommand2, IBotMessage {
 		ArgumentNullException.ThrowIfNull(bot);
 		ArgumentException.ThrowIfNullOrEmpty(message);
 
-		if ((_discord == null) || !_configuration.Accepts(steamID)) {
+		if (_discord == null) {
 			return null;
 		}
 
@@ -109,9 +109,7 @@ public sealed class LeetifyDiscordPlugin : IBotCommand2, IBotMessage {
 			ASF.ArchiLogger.LogGenericInfo("LeetifyDiscord will post match links only.");
 		}
 
-		string extra = _configuration.ExtraSteamId is ulong extraSteamId ? $" and {extraSteamId.ToString(System.Globalization.CultureInfo.InvariantCulture)}" : "";
-
-		ASF.ArchiLogger.LogGenericInfo($"LeetifyDiscord is listening for SteamID {PluginConfiguration.DefaultLeetifySteamId}{extra}.");
+		ASF.ArchiLogger.LogGenericInfo("LeetifyDiscord is listening for Leetify match links.");
 
 		return Task.CompletedTask;
 	}

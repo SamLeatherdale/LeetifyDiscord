@@ -27,6 +27,17 @@ public sealed class LeetifyMessageParserTests {
 	}
 
 	[TestMethod]
+	public void AcceptsAMatchLinkThatCarriesATrackingQuery() {
+		const string message = "Your match is ready: https://leetify.com/app/match-details/e30ce267-5b26-48ac-8ad5-68d97a53884b?utm_source=steam-bot&utm_campaign=match_report_available";
+
+		IReadOnlyList<LeetifyMatchLink> links = LeetifyMessageParser.FindMatchLinks(message);
+
+		Assert.HasCount(1, links);
+		Assert.AreEqual(Guid.Parse("e30ce267-5b26-48ac-8ad5-68d97a53884b"), links[0].MatchId);
+		Assert.AreEqual("https://leetify.com/app/match-details/e30ce267-5b26-48ac-8ad5-68d97a53884b", links[0].Url.AbsoluteUri);
+	}
+
+	[TestMethod]
 	public void IgnoresOtherHostsPlainHttpAndLinksWithoutAMatchId() {
 		const string message = "https://example.com/app/match-details/e30ce267-5b26-48ac-8ad5-68d97a53884b http://leetify.com/app/match-details/e30ce267-5b26-48ac-8ad5-68d97a53884b https://leetify.com/app";
 
@@ -66,11 +77,11 @@ public sealed class MatchReportTests {
 		Assert.IsNotNull(embed.Description);
 		StringAssert.Contains(embed.Description, "**13 : 3**");
 		StringAssert.Contains(embed.Description, "You · Opponents");
-		StringAssert.Contains(embed.Description, "1.  *Nova*  `+12.32`");
-		StringAssert.Contains(embed.Description, "2.  Ken  `+5.00`");
-		StringAssert.Contains(embed.Description, "3.  Mira  `+1.00`");
-		StringAssert.Contains(embed.Description, "4.  Lux  `-1.00`");
-		StringAssert.Contains(embed.Description, "5.  Ren  `-4.00`");
+		StringAssert.Contains(embed.Description, "🥇  *Nova*  `+12.32`");
+		StringAssert.Contains(embed.Description, "🥈  Ken  `+5.00`");
+		StringAssert.Contains(embed.Description, "🥉  Mira  `+1.00`");
+		StringAssert.Contains(embed.Description, "4️⃣  Lux  `-1.00`");
+		StringAssert.Contains(embed.Description, "5️⃣  Ren  `-4.00`");
 		Assert.IsFalse(embed.Description.Contains("S1mple", StringComparison.Ordinal));
 		Assert.IsFalse(embed.Description.Contains("Ash", StringComparison.Ordinal));
 		Assert.IsNull(embed.Fields);
@@ -88,7 +99,7 @@ public sealed class MatchReportTests {
 		Assert.AreEqual(0xED4245, embed.Color);
 		Assert.IsNotNull(embed.Description);
 		StringAssert.Contains(embed.Description, "**3 : 13**");
-		StringAssert.Contains(embed.Description, "1.  *Ash*  `-2.18`");
+		StringAssert.Contains(embed.Description, "🥇  *Ash*  `-2.18`");
 	}
 
 	[TestMethod]
@@ -129,13 +140,13 @@ public sealed class MatchReportTests {
 		DiscordEmbed embed = SingleEmbed(MatchReport.Create(MatchUrl, match, ViewerSteamId, static steamId => steamId is 76561197960265730 or 76561197960265731 or 76561197960265732));
 
 		Assert.IsNotNull(embed.Description);
-		StringAssert.Contains(embed.Description, "1.  *Nova*  `+12.32`");
-		StringAssert.Contains(embed.Description, "2.  Ken  `+5.00`");
-		StringAssert.Contains(embed.Description, "4.  Lux  `-1.00`");
+		StringAssert.Contains(embed.Description, "🥇  *Nova*  `+12.32`");
+		StringAssert.Contains(embed.Description, "🥈  Ken  `+5.00`");
+		StringAssert.Contains(embed.Description, "4️⃣  Lux  `-1.00`");
 		Assert.IsFalse(embed.Description.Contains("Mira", StringComparison.Ordinal));
 		Assert.IsFalse(embed.Description.Contains("Ren", StringComparison.Ordinal));
 		Assert.IsFalse(embed.Description.Contains("Ash", StringComparison.Ordinal));
-		Assert.IsFalse(embed.Description.Contains("\n3.", StringComparison.Ordinal));
+		Assert.IsFalse(embed.Description.Contains("🥉", StringComparison.Ordinal));
 	}
 
 	[TestMethod]
@@ -145,8 +156,8 @@ public sealed class MatchReportTests {
 		Assert.AreEqual(0xED4245, embed.Color);
 		Assert.IsNotNull(embed.Description);
 		StringAssert.Contains(embed.Description, "**3 : 13**");
-		StringAssert.Contains(embed.Description, "1.  S1mple  `+20.00`");
-		StringAssert.Contains(embed.Description, "2.  *Ash*  `-2.18`");
+		StringAssert.Contains(embed.Description, "🥇  S1mple  `+20.00`");
+		StringAssert.Contains(embed.Description, "🥈  *Ash*  `-2.18`");
 		Assert.IsFalse(embed.Description.Contains("Nova", StringComparison.Ordinal));
 		Assert.IsFalse(embed.Description.Contains("Ken", StringComparison.Ordinal));
 	}
@@ -181,41 +192,27 @@ public sealed class MatchReportTests {
 [TestClass]
 public sealed class PluginConfigurationTests {
 	[TestMethod]
-	public void ReadsADiscordWebhookAndOptionalValues() {
+	public void ReadsADiscordWebhookAndOptionalApiKey() {
 		PluginConfiguration configuration = PluginConfiguration.Read(name => name switch {
 			PluginConfiguration.WebhookVariable => "https://discord.com/api/webhooks/1/secret",
 			PluginConfiguration.ApiKeyVariable => "key",
-			PluginConfiguration.SteamIdVariable => "76561197960265729",
 			_ => null
 		});
 
 		Assert.AreEqual("https://discord.com/api/webhooks/1/secret", configuration.WebhookUrl?.AbsoluteUri);
 		Assert.AreEqual("key", configuration.LeetifyApiKey);
-		Assert.AreEqual(76561197960265729UL, configuration.ExtraSteamId);
-		Assert.IsTrue(configuration.Accepts(PluginConfiguration.DefaultLeetifySteamId));
-		Assert.IsTrue(configuration.Accepts(76561197960265729));
 		Assert.IsEmpty(configuration.Warnings);
 	}
 
 	[TestMethod]
-	public void RejectsAWebhookThatIsNotDiscordAndFallsBackToTheLeetifyBot() {
+	public void RejectsAWebhookThatIsNotDiscord() {
 		PluginConfiguration configuration = PluginConfiguration.Read(name => name switch {
 			PluginConfiguration.WebhookVariable => "https://example.com/api/webhooks/1/secret",
-			PluginConfiguration.SteamIdVariable => "nope",
 			_ => null
 		});
 
 		Assert.IsNull(configuration.WebhookUrl);
 		Assert.IsNull(configuration.LeetifyApiKey);
-		Assert.IsNull(configuration.ExtraSteamId);
-		Assert.IsTrue(configuration.Accepts(PluginConfiguration.DefaultLeetifySteamId));
-		Assert.HasCount(2, configuration.Warnings);
-	}
-
-	[TestMethod]
-	public void RecognizesTheLeetifyBotAsAnIndividualAccount() {
-		Assert.IsTrue(PluginConfiguration.IsIndividualAccount(PluginConfiguration.DefaultLeetifySteamId));
-		Assert.IsTrue(PluginConfiguration.IsIndividualAccount(76561197960265729));
-		Assert.IsFalse(PluginConfiguration.IsIndividualAccount(0));
+		Assert.HasCount(1, configuration.Warnings);
 	}
 }

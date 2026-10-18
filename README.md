@@ -38,9 +38,8 @@ Set these on the ASF process. They are not stored in this repository.
 | --- | --- | --- |
 | `DISCORD_WEBHOOK_URL` | yes | `https://discord.com/api/webhooks/...` or `discordapp.com`. The plugin does not set the webhook name or avatar. |
 | `LEETIFY_API_KEY` | no | Free key from [leetify.com/app/developer](https://leetify.com/app/developer). Without it, only the match link is posted. |
-| `LEETIFY_STEAM_ID64` | no | Extra sender to accept in addition to Leetify's bot, `76561199102317235`. |
 
-The ASF bot that receives the Leetify direct message must not use OnlineStatus Offline. The plugin does not reply on Steam.
+Any Steam message that contains a Leetify match link is posted. The ASF bot that receives it must not use OnlineStatus Offline. The plugin does not reply on Steam.
 
 `leetifytest`, from an account with Master access or the ASF console, posts a fixed Discord message.
 

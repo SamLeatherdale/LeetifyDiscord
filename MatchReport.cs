@@ -196,8 +196,17 @@ public static class MatchReport {
 			name = $"*{name}*";
 		}
 
-		text.Append(CultureInfo.InvariantCulture, $"\n{index + 1}.  {name}  `{FormatRating(player.LeetifyRating)}`");
+		text.Append(CultureInfo.InvariantCulture, $"\n{PlaceMarker(index + 1)}  {name}  `{FormatRating(player.LeetifyRating)}`");
 	}
+
+	private static string PlaceMarker(int place) => place switch {
+		1 => "🥇",
+		2 => "🥈",
+		3 => "🥉",
+		4 => "4️⃣",
+		5 => "5️⃣",
+		_ => place.ToString(CultureInfo.InvariantCulture)
+	};
 
 	private static DiscordWebhookPayload LinkOnly(Uri matchUrl) => new() {
 		Embeds = [
