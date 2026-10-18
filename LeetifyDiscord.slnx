@@ -1,0 +1,4 @@
+<Solution>
+	<Project Path="LeetifyDiscord.csproj" />
+	<Project Path="LeetifyDiscord.Tests/LeetifyDiscord.Tests.csproj" />
+</Solution>

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<Version>1.0.0</Version>
+		<AssemblyName>LeetifyDiscord</AssemblyName>
+		<RootNamespace>LeetifyDiscord</RootNamespace>
+		<AsfAssembly Condition="'$(AsfAssembly)' == ''">$(MSBuildThisFileDirectory)lib\ArchiSteamFarm.dll</AsfAssembly>
+		<DefaultItemExcludes>$(DefaultItemExcludes);LeetifyDiscord.Tests/**</DefaultItemExcludes>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Reference Include="ArchiSteamFarm">
+			<HintPath>$(AsfAssembly)</HintPath>
+			<Private>false</Private>
+		</Reference>
+	</ItemGroup>
+</Project>

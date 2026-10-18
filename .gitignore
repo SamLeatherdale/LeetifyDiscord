@@ -1,0 +1,9 @@
+bin/
+obj/
+out/
+lib/
+.vs/
+*.user
+*.suo
+TestResults/
+local.env
