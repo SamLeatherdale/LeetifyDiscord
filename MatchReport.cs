@@ -13,6 +13,34 @@ public static class MatchReport {
 
 	private const int TieColor = 0xF0B429;
 
+	public static bool PlayedWithFriend(LeetifyMatch match, ulong steamId, Func<ulong, bool> isFriend) {
+		ArgumentNullException.ThrowIfNull(match);
+		ArgumentNullException.ThrowIfNull(isFriend);
+
+		if (match.Stats == null) {
+			return false;
+		}
+
+		string steamText = steamId.ToString(CultureInfo.InvariantCulture);
+		PlayerStats? viewer = match.Stats.FirstOrDefault(stat => stat.Steam64Id == steamText);
+
+		if (viewer == null) {
+			return false;
+		}
+
+		foreach (PlayerStats stat in match.Stats) {
+			if ((stat.InitialTeamNumber != viewer.InitialTeamNumber) || (stat.Steam64Id == steamText)) {
+				continue;
+			}
+
+			if (IsFriend(stat, isFriend)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	public static DiscordWebhookPayload Create(Uri matchUrl, LeetifyMatch? match, ulong steamId, Func<ulong, bool>? isFriend = null) {
 		ArgumentNullException.ThrowIfNull(matchUrl);
 

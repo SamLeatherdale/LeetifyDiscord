@@ -57,17 +57,22 @@ public sealed class LeetifyDiscordPlugin : IBotCommand2, IBotMessage {
 
 		foreach (LeetifyMatchLink link in LeetifyMessageParser.FindMatchLinks(message)) {
 			try {
-				LeetifyMatch? match = null;
+				LeetifyMatch? match = _leetify == null ? null : await _leetify.GetMatchAsync(link.MatchId).ConfigureAwait(false);
+				Func<ulong, bool> isFriend = candidate => IsSteamFriend(bot, candidate);
 
-				if (_leetify != null) {
-					match = await _leetify.GetMatchAsync(link.MatchId).ConfigureAwait(false);
+				if (match == null) {
+					bot.ArchiLogger.LogGenericInfo($"LeetifyDiscord skipped {link.Url} because the match details were unavailable.");
 
-					if (match == null) {
-						bot.ArchiLogger.LogGenericWarning($"Leetify match lookup returned no details for {link.Url}. Posting the link.");
-					}
+					continue;
 				}
 
-				bool posted = await _discord.PostAsync(MatchReport.Create(link.Url, match, bot.SteamID, candidate => IsSteamFriend(bot, candidate))).ConfigureAwait(false);
+				if (!MatchReport.PlayedWithFriend(match, bot.SteamID, isFriend)) {
+					bot.ArchiLogger.LogGenericInfo($"LeetifyDiscord skipped {link.Url} because no Steam friend was on the team.");
+
+					continue;
+				}
+
+				bool posted = await _discord.PostAsync(MatchReport.Create(link.Url, match, bot.SteamID, isFriend)).ConfigureAwait(false);
 
 				if (posted) {
 					bot.ArchiLogger.LogGenericInfo($"LeetifyDiscord posted {link.Url}.");
@@ -106,7 +111,7 @@ public sealed class LeetifyDiscordPlugin : IBotCommand2, IBotMessage {
 			_leetify = new LeetifyApiClient(_httpClient, _configuration.LeetifyApiKey);
 			ASF.ArchiLogger.LogGenericInfo("LeetifyDiscord will include match details from the Leetify API.");
 		} else {
-			ASF.ArchiLogger.LogGenericInfo("LeetifyDiscord will post match links only.");
+			ASF.ArchiLogger.LogGenericWarning("LeetifyDiscord will not post matches because the Leetify API key is not set.");
 		}
 
 		ASF.ArchiLogger.LogGenericInfo("LeetifyDiscord is listening for Leetify match links.");

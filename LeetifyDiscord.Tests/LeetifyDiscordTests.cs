@@ -150,6 +150,26 @@ public sealed class MatchReportTests {
 	}
 
 	[TestMethod]
+	public void RecognizesAFriendOnTheSameTeam() {
+		LeetifyMatch match = SampleMatch();
+		match.Stats![1].Name = null;
+		match.Stats[1].Steam64Id = "76561197960265731";
+
+		Assert.IsTrue(MatchReport.PlayedWithFriend(match, ViewerSteamId, static steamId => steamId == 76561197960265731));
+	}
+
+	[TestMethod]
+	public void IgnoresAFriendOnTheOtherTeam() {
+		Assert.IsFalse(MatchReport.PlayedWithFriend(SampleMatch(), ViewerSteamId, static steamId => steamId == 76561197960265730));
+	}
+
+	[TestMethod]
+	public void IgnoresATeamWithNoFriends() {
+		Assert.IsFalse(MatchReport.PlayedWithFriend(SampleMatch(), ViewerSteamId, static _ => false));
+		Assert.IsFalse(MatchReport.PlayedWithFriend(SampleMatch(), 76561197960265728, static _ => true));
+	}
+
+	[TestMethod]
 	public void ListsOnlyTheRecipientsTeam() {
 		DiscordEmbed embed = SingleEmbed(MatchReport.Create(MatchUrl, SampleMatch(), 76561197960265730));
 
