@@ -53,11 +53,12 @@ public static class MatchReport {
 		return new DiscordWebhookPayload {
 			Embeds = [
 				new DiscordEmbed {
-					Title = DisplayMap(match.MapName),
+					Title = card.Title,
 					Url = matchUrl.ToString(),
-					Description = card.Description,
 					Color = card.Color,
-					Thumbnail = MapThumbnail(match.MapName),
+					Image = PreviewImage(matchUrl),
+					Description = card.Description,
+					Fields = card.Fields,
 					Footer = DisplaySource(match.DataSource),
 					Timestamp = match.FinishedAt
 				}
@@ -76,24 +77,11 @@ public static class MatchReport {
 	};
 
 	private static MatchCard BuildCard(LeetifyMatch match, ulong steamId, Func<ulong, bool>? isFriend) {
-		StringBuilder text = new();
 		ScorePresentation? score = PresentScore(match, steamId);
+		string map = DisplayMap(match.MapName);
+		string title = score == null ? map : $"{map} - {score.Value.Text}";
 
-		if (score != null) {
-			text.Append(score.Value.Text);
-		}
-
-		string? top = FormatTopPlayers(match.Stats, steamId, isFriend);
-
-		if (top != null) {
-			if (text.Length > 0) {
-				text.Append("\n\n");
-			}
-
-			text.Append(top);
-		}
-
-		return new MatchCard(text.Length == 0 ? null : text.ToString(), score?.Color ?? EmbedColor);
+		return new MatchCard(title, FormatHighlight(match.Stats, steamId, isFriend), FormatTopPlayers(match.Stats, steamId, isFriend), score?.Color ?? EmbedColor);
 	}
 
 	private static string DisplayMap(string? mapName) {
@@ -165,7 +153,7 @@ public static class MatchReport {
 
 		if ((ours != null) && (theirs != null)) {
 			int color = ours.Score > theirs.Score ? WinColor : ours.Score < theirs.Score ? LossColor : TieColor;
-			string text = $"**{ours.Score.ToString(CultureInfo.InvariantCulture)} : {theirs.Score.ToString(CultureInfo.InvariantCulture)}**\nYou · Opponents";
+			string text = $"{ours.Score.ToString(CultureInfo.InvariantCulture)} : {theirs.Score.ToString(CultureInfo.InvariantCulture)}";
 
 			return new ScorePresentation(text, color);
 		}
@@ -173,15 +161,146 @@ public static class MatchReport {
 		List<TeamScore> ordered = scores.OrderByDescending(static score => score.Score).ThenBy(static score => score.TeamNumber).ToList();
 
 		if (ordered.Count >= 2) {
-			return new ScorePresentation($"**{ordered[0].Score.ToString(CultureInfo.InvariantCulture)} : {ordered[1].Score.ToString(CultureInfo.InvariantCulture)}**", EmbedColor);
+			return new ScorePresentation($"{ordered[0].Score.ToString(CultureInfo.InvariantCulture)} : {ordered[1].Score.ToString(CultureInfo.InvariantCulture)}", EmbedColor);
 		}
 
-		return new ScorePresentation($"**{ordered[0].Score.ToString(CultureInfo.InvariantCulture)}**", EmbedColor);
+		return new ScorePresentation(ordered[0].Score.ToString(CultureInfo.InvariantCulture), EmbedColor);
 	}
+
+	private const int MvpHighlightMinimum = 5;
 
 	private static string FormatRating(double rating) => (rating * 100).ToString("+0.00;-0.00;0.00", CultureInfo.InvariantCulture);
 
-	private static string? FormatTopPlayers(List<PlayerStats>? stats, ulong steamId, Func<ulong, bool>? isFriend) {
+	private static string FormatAdr(double adr) => adr.ToString("0.#", CultureInfo.InvariantCulture);
+
+	private static string? FormatHighlight(List<PlayerStats>? stats, ulong steamId, Func<ulong, bool>? isFriend) {
+		List<PlayerStats>? ranked = RankedTeammates(stats, steamId);
+
+		if (ranked == null) {
+			return null;
+		}
+
+		string steamText = steamId.ToString(CultureInfo.InvariantCulture);
+		int viewerIndex = ranked.FindIndex(stat => stat.Steam64Id == steamText);
+		List<PlayerStats> listed = [];
+
+		for (int index = 0; index < ranked.Count; index++) {
+			if (IsListed(ranked[index], index, viewerIndex, isFriend)) {
+				listed.Add(ranked[index]);
+			}
+		}
+
+		PlayerStats? multiKill = BestMultiKill(listed);
+
+		if (multiKill != null) {
+			int tier = multiKill.Multi5k > 0 ? 5 : 4;
+			int count = tier == 5 ? multiKill.Multi5k : multiKill.Multi4k;
+
+			return MultiKillLine(DisplayName(multiKill, multiKill.Steam64Id == steamText), tier, count);
+		}
+
+		PlayerStats? mvp = null;
+
+		foreach (PlayerStats player in listed) {
+			if ((player.Mvps < MvpHighlightMinimum) || ((mvp != null) && (player.Mvps <= mvp.Mvps))) {
+				continue;
+			}
+
+			mvp = player;
+		}
+
+		return mvp == null ? null : $"{DisplayName(mvp, mvp.Steam64Id == steamText)} earned {mvp.Mvps.ToString(CultureInfo.InvariantCulture)} MVPs";
+	}
+
+	private static PlayerStats? BestMultiKill(List<PlayerStats> ranked) {
+		PlayerStats? best = null;
+		int bestTier = 0;
+		int bestCount = 0;
+
+		foreach (PlayerStats player in ranked) {
+			int tier = player.Multi5k > 0 ? 5 : player.Multi4k > 0 ? 4 : 0;
+
+			if (tier == 0) {
+				continue;
+			}
+
+			int count = tier == 5 ? player.Multi5k : player.Multi4k;
+
+			if ((best != null) && ((tier < bestTier) || ((tier == bestTier) && (count <= bestCount)))) {
+				continue;
+			}
+
+			best = player;
+			bestTier = tier;
+			bestCount = count;
+		}
+
+		return best;
+	}
+
+	private static string MultiKillLine(string name, int tier, int count) {
+		if (tier == 5) {
+			return count == 1 ? $"{name} scored an ace" : $"{name} scored {count.ToString(CultureInfo.InvariantCulture)} aces";
+		}
+
+		return count == 1 ? $"{name} scored a 4k" : $"{name} scored {count.ToString(CultureInfo.InvariantCulture)} 4ks";
+	}
+
+	private static DiscordEmbedField[]? FormatTopPlayers(List<PlayerStats>? stats, ulong steamId, Func<ulong, bool>? isFriend) {
+		List<PlayerStats>? ranked = RankedTeammates(stats, steamId);
+
+		if (ranked == null) {
+			return null;
+		}
+
+		string steamText = steamId.ToString(CultureInfo.InvariantCulture);
+		int viewerIndex = ranked.FindIndex(stat => stat.Steam64Id == steamText);
+		StringBuilder names = new();
+		StringBuilder ratings = new();
+		StringBuilder damage = new();
+		bool listed = false;
+
+		for (int index = 0; index < ranked.Count; index++) {
+			if (!IsListed(ranked[index], index, viewerIndex, isFriend)) {
+				continue;
+			}
+
+			if (listed) {
+				names.Append('\n');
+				ratings.Append('\n');
+				damage.Append('\n');
+			}
+
+			names.Append(CultureInfo.InvariantCulture, $"{PlaceMarker(index + 1)}  {DisplayName(ranked[index], index == viewerIndex)}");
+			ratings.Append(CultureInfo.InvariantCulture, $"`{FormatRating(ranked[index].LeetifyRating)}`");
+			damage.Append(CultureInfo.InvariantCulture, $"`{FormatAdr(ranked[index].Dpr)}`");
+			listed = true;
+		}
+
+		if (!listed) {
+			return null;
+		}
+
+		return [
+			new DiscordEmbedField {
+				Name = "Team rankings",
+				Value = names.ToString(),
+				Inline = true
+			},
+			new DiscordEmbedField {
+				Name = "Rating",
+				Value = ratings.ToString(),
+				Inline = true
+			},
+			new DiscordEmbedField {
+				Name = "ADR",
+				Value = damage.ToString(),
+				Inline = true
+			}
+		];
+	}
+
+	private static List<PlayerStats>? RankedTeammates(List<PlayerStats>? stats, ulong steamId) {
 		if ((stats == null) || (stats.Count == 0)) {
 			return null;
 		}
@@ -195,37 +314,18 @@ public static class MatchReport {
 
 		List<PlayerStats> ranked = stats.Where(stat => (stat.InitialTeamNumber == viewer.InitialTeamNumber) && !string.IsNullOrWhiteSpace(stat.Name)).OrderByDescending(static stat => stat.LeetifyRating).ToList();
 
-		if (ranked.Count == 0) {
-			return null;
-		}
-
-		int viewerIndex = ranked.FindIndex(stat => stat.Steam64Id == steamText);
-		StringBuilder text = new("**Your team**");
-		bool listed = false;
-
-		for (int index = 0; index < ranked.Count; index++) {
-			if ((isFriend != null) && (index != viewerIndex) && !IsFriend(ranked[index], isFriend)) {
-				continue;
-			}
-
-			AppendPlayer(text, ranked[index], index, viewerIndex);
-			listed = true;
-		}
-
-		return listed ? text.ToString() : null;
+		return ranked.Count == 0 ? null : ranked;
 	}
 
-	private static bool IsFriend(PlayerStats player, Func<ulong, bool> isFriend) => ulong.TryParse(player.Steam64Id, NumberStyles.None, CultureInfo.InvariantCulture, out ulong steamId) && isFriend(steamId);
-
-	private static void AppendPlayer(StringBuilder text, PlayerStats player, int index, int viewerIndex) {
+	private static string DisplayName(PlayerStats player, bool viewer) {
 		string name = EscapeDiscord(player.Name!);
 
-		if (index == viewerIndex) {
-			name = $"*{name}*";
-		}
-
-		text.Append(CultureInfo.InvariantCulture, $"\n{PlaceMarker(index + 1)}  {name}  `{FormatRating(player.LeetifyRating)}`");
+		return viewer ? $"*{name}*" : name;
 	}
+
+	private static bool IsListed(PlayerStats player, int index, int viewerIndex, Func<ulong, bool>? isFriend) => (isFriend == null) || (index == viewerIndex) || IsFriend(player, isFriend);
+
+	private static bool IsFriend(PlayerStats player, Func<ulong, bool> isFriend) => ulong.TryParse(player.Steam64Id, NumberStyles.None, CultureInfo.InvariantCulture, out ulong steamId) && isFriend(steamId);
 
 	private static string PlaceMarker(int place) => place switch {
 		1 => "🥇",
@@ -241,22 +341,25 @@ public static class MatchReport {
 			new DiscordEmbed {
 				Title = "Leetify match",
 				Url = matchUrl.ToString(),
-				Color = EmbedColor
+				Color = EmbedColor,
+				Image = PreviewImage(matchUrl)
 			}
 		]
 	};
 
-	private static DiscordEmbedThumbnail? MapThumbnail(string? mapName) {
-		if (string.IsNullOrWhiteSpace(mapName) || !mapName.All(static character => char.IsAsciiLetterOrDigit(character) || (character == '_'))) {
+	private static DiscordEmbedImage? PreviewImage(Uri matchUrl) {
+		string? matchId = matchUrl.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
+
+		if (!Guid.TryParse(matchId, out Guid parsed)) {
 			return null;
 		}
 
-		return new DiscordEmbedThumbnail {
-			Url = $"https://leetify.com/assets/images/maps-webp/small/{mapName}_1_small.webp"
+		return new DiscordEmbedImage {
+			Url = $"https://api.cs-prod.leetify.com/preview-image/match-details/{parsed:D}"
 		};
 	}
 
-	private readonly record struct MatchCard(string? Description, int Color);
+	private readonly record struct MatchCard(string Title, string? Description, DiscordEmbedField[]? Fields, int Color);
 
 	private readonly record struct ScorePresentation(string Text, int Color);
 
@@ -295,8 +398,8 @@ public sealed class DiscordEmbed {
 	[JsonPropertyName("color")]
 	public int? Color { get; set; }
 
-	[JsonPropertyName("thumbnail")]
-	public DiscordEmbedThumbnail? Thumbnail { get; set; }
+	[JsonPropertyName("image")]
+	public DiscordEmbedImage? Image { get; set; }
 
 	[JsonPropertyName("footer")]
 	public DiscordEmbedFooter? Footer { get; set; }
@@ -308,7 +411,7 @@ public sealed class DiscordEmbed {
 	public DiscordEmbedField[]? Fields { get; set; }
 }
 
-public sealed class DiscordEmbedThumbnail {
+public sealed class DiscordEmbedImage {
 	[JsonPropertyName("url")]
 	public string? Url { get; set; }
 }
@@ -369,4 +472,16 @@ public sealed class PlayerStats {
 
 	[JsonPropertyName("leetify_rating")]
 	public double LeetifyRating { get; set; }
+
+	[JsonPropertyName("dpr")]
+	public double Dpr { get; set; }
+
+	[JsonPropertyName("mvps")]
+	public int Mvps { get; set; }
+
+	[JsonPropertyName("multi4k")]
+	public int Multi4k { get; set; }
+
+	[JsonPropertyName("multi5k")]
+	public int Multi5k { get; set; }
 }

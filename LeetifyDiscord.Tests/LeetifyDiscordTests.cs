@@ -69,22 +69,26 @@ public sealed class MatchReportTests {
 	public void ShowsTheScoreAndTheThreeHighestRatings() {
 		DiscordEmbed embed = SingleEmbed(MatchReport.Create(MatchUrl, SampleMatch(), ViewerSteamId));
 
-		Assert.AreEqual("Nuke", embed.Title);
+		Assert.AreEqual("Nuke - 13 : 3", embed.Title);
 		Assert.AreEqual(MatchUrl.AbsoluteUri, embed.Url);
 		Assert.AreEqual(0x3BA55C, embed.Color);
-		Assert.AreEqual("https://leetify.com/assets/images/maps-webp/small/de_nuke_1_small.webp", embed.Thumbnail?.Url);
+		Assert.AreEqual("https://api.cs-prod.leetify.com/preview-image/match-details/e30ce267-5b26-48ac-8ad5-68d97a53884b", embed.Image?.Url);
 		Assert.AreEqual("Matchmaking", embed.Footer?.Text);
-		Assert.IsNotNull(embed.Description);
-		StringAssert.Contains(embed.Description, "**13 : 3**");
-		StringAssert.Contains(embed.Description, "You · Opponents");
-		StringAssert.Contains(embed.Description, "🥇  *Nova*  `+12.32`");
-		StringAssert.Contains(embed.Description, "🥈  Ken  `+5.00`");
-		StringAssert.Contains(embed.Description, "🥉  Mira  `+1.00`");
-		StringAssert.Contains(embed.Description, "4️⃣  Lux  `-1.00`");
-		StringAssert.Contains(embed.Description, "5️⃣  Ren  `-4.00`");
-		Assert.IsFalse(embed.Description.Contains("S1mple", StringComparison.Ordinal));
-		Assert.IsFalse(embed.Description.Contains("Ash", StringComparison.Ordinal));
-		Assert.IsNull(embed.Fields);
+		Assert.IsNull(embed.Description);
+		Assert.IsNotNull(embed.Fields);
+		Assert.HasCount(3, embed.Fields);
+		Assert.AreEqual("Team rankings", embed.Fields[0].Name);
+		Assert.IsTrue(embed.Fields[0].Inline);
+		Assert.AreEqual("🥇  *Nova*\n🥈  Ken\n🥉  Mira\n4️⃣  Lux\n5️⃣  Ren", embed.Fields[0].Value);
+		Assert.AreEqual("Rating", embed.Fields[1].Name);
+		Assert.IsTrue(embed.Fields[1].Inline);
+		Assert.AreEqual("`+12.32`\n`+5.00`\n`+1.00`\n`-1.00`\n`-4.00`", embed.Fields[1].Value);
+		Assert.AreEqual("ADR", embed.Fields[2].Name);
+		Assert.IsTrue(embed.Fields[2].Inline);
+		Assert.AreEqual("`80`\n`70.5`\n`60`\n`50`\n`40`", embed.Fields[2].Value);
+		string names = embed.Fields[0].Value ?? "";
+		Assert.IsFalse(names.Contains("S1mple", StringComparison.Ordinal));
+		Assert.IsFalse(names.Contains("Ash", StringComparison.Ordinal));
 	}
 
 	[TestMethod]
@@ -96,10 +100,12 @@ public sealed class MatchReportTests {
 		LeetifyMatch? match = JsonSerializer.Deserialize(json, PluginJsonContext.Default.LeetifyMatch);
 		DiscordEmbed embed = SingleEmbed(MatchReport.Create(MatchUrl, match, 76561197960265730));
 
+		Assert.AreEqual("Nuke - 3 : 13", embed.Title);
 		Assert.AreEqual(0xED4245, embed.Color);
-		Assert.IsNotNull(embed.Description);
-		StringAssert.Contains(embed.Description, "**3 : 13**");
-		StringAssert.Contains(embed.Description, "🥇  *Ash*  `-2.18`");
+		Assert.IsNotNull(embed.Fields);
+		Assert.AreEqual("🥇  *Ash*", embed.Fields[0].Value);
+		Assert.AreEqual("`-2.18`", embed.Fields[1].Value);
+		Assert.AreEqual("`0`", embed.Fields[2].Value);
 	}
 
 	[TestMethod]
@@ -112,10 +118,9 @@ public sealed class MatchReportTests {
 
 		DiscordEmbed embed = SingleEmbed(MatchReport.Create(MatchUrl, match, ViewerSteamId));
 
-		Assert.AreEqual("Nuke", embed.Title);
-		Assert.IsNotNull(embed.Description);
-		StringAssert.Contains(embed.Description, "**13 : 3**");
-		Assert.IsFalse(embed.Description.Contains("Your team", StringComparison.Ordinal));
+		Assert.AreEqual("Nuke - 13 : 3", embed.Title);
+		Assert.IsNull(embed.Description);
+		Assert.IsNull(embed.Fields);
 	}
 
 	[TestMethod]
@@ -126,9 +131,8 @@ public sealed class MatchReportTests {
 
 		DiscordEmbed embed = SingleEmbed(MatchReport.Create(MatchUrl, match, ViewerSteamId));
 
+		Assert.AreEqual("Nuke - 13 : 13", embed.Title);
 		Assert.AreEqual(0xF0B429, embed.Color);
-		Assert.IsNotNull(embed.Description);
-		StringAssert.Contains(embed.Description, "**13 : 13**");
 	}
 
 	[TestMethod]
@@ -139,14 +143,15 @@ public sealed class MatchReportTests {
 
 		DiscordEmbed embed = SingleEmbed(MatchReport.Create(MatchUrl, match, ViewerSteamId, static steamId => steamId is 76561197960265730 or 76561197960265731 or 76561197960265732));
 
-		Assert.IsNotNull(embed.Description);
-		StringAssert.Contains(embed.Description, "🥇  *Nova*  `+12.32`");
-		StringAssert.Contains(embed.Description, "🥈  Ken  `+5.00`");
-		StringAssert.Contains(embed.Description, "4️⃣  Lux  `-1.00`");
-		Assert.IsFalse(embed.Description.Contains("Mira", StringComparison.Ordinal));
-		Assert.IsFalse(embed.Description.Contains("Ren", StringComparison.Ordinal));
-		Assert.IsFalse(embed.Description.Contains("Ash", StringComparison.Ordinal));
-		Assert.IsFalse(embed.Description.Contains("🥉", StringComparison.Ordinal));
+		Assert.IsNotNull(embed.Fields);
+		Assert.AreEqual("🥇  *Nova*\n🥈  Ken\n4️⃣  Lux", embed.Fields[0].Value);
+		Assert.AreEqual("`+12.32`\n`+5.00`\n`-1.00`", embed.Fields[1].Value);
+		Assert.AreEqual("`80`\n`70.5`\n`50`", embed.Fields[2].Value);
+		string names = embed.Fields[0].Value ?? "";
+		Assert.IsFalse(names.Contains("Mira", StringComparison.Ordinal));
+		Assert.IsFalse(names.Contains("Ren", StringComparison.Ordinal));
+		Assert.IsFalse(names.Contains("Ash", StringComparison.Ordinal));
+		Assert.IsFalse(names.Contains("🥉", StringComparison.Ordinal));
 	}
 
 	[TestMethod]
@@ -173,13 +178,104 @@ public sealed class MatchReportTests {
 	public void ListsOnlyTheRecipientsTeam() {
 		DiscordEmbed embed = SingleEmbed(MatchReport.Create(MatchUrl, SampleMatch(), 76561197960265730));
 
+		Assert.AreEqual("Nuke - 3 : 13", embed.Title);
 		Assert.AreEqual(0xED4245, embed.Color);
-		Assert.IsNotNull(embed.Description);
-		StringAssert.Contains(embed.Description, "**3 : 13**");
-		StringAssert.Contains(embed.Description, "🥇  S1mple  `+20.00`");
-		StringAssert.Contains(embed.Description, "🥈  *Ash*  `-2.18`");
-		Assert.IsFalse(embed.Description.Contains("Nova", StringComparison.Ordinal));
-		Assert.IsFalse(embed.Description.Contains("Ken", StringComparison.Ordinal));
+		Assert.IsNotNull(embed.Fields);
+		Assert.AreEqual("🥇  S1mple\n🥈  *Ash*", embed.Fields[0].Value);
+		Assert.AreEqual("`+20.00`\n`-2.18`", embed.Fields[1].Value);
+		Assert.AreEqual("`100`\n`30.2`", embed.Fields[2].Value);
+		string names = embed.Fields[0].Value ?? "";
+		Assert.IsFalse(names.Contains("Nova", StringComparison.Ordinal));
+		Assert.IsFalse(names.Contains("Ken", StringComparison.Ordinal));
+	}
+
+	[TestMethod]
+	public void ShowsAFourKillAboveTheRankings() {
+		LeetifyMatch match = SampleMatch();
+		match.Stats![2].Multi4k = 1;
+		match.Stats[6].Multi5k = 1;
+
+		DiscordEmbed embed = SingleEmbed(MatchReport.Create(MatchUrl, match, ViewerSteamId));
+
+		Assert.AreEqual("Mira scored a 4k", embed.Description);
+	}
+
+	[TestMethod]
+	public void PrefersAnAceOverAFourKillAndAHighMvpCount() {
+		LeetifyMatch match = SampleMatch();
+		match.Stats![0].Multi5k = 1;
+		match.Stats[2].Multi4k = 2;
+		match.Stats[1].Mvps = 6;
+
+		DiscordEmbed embed = SingleEmbed(MatchReport.Create(MatchUrl, match, ViewerSteamId));
+
+		Assert.AreEqual("*Nova* scored an ace", embed.Description);
+	}
+
+	[TestMethod]
+	public void UsesTheHigherMultiKillCount() {
+		LeetifyMatch match = SampleMatch();
+		match.Stats![0].Multi4k = 1;
+		match.Stats[1].Multi4k = 2;
+
+		DiscordEmbed embed = SingleEmbed(MatchReport.Create(MatchUrl, match, ViewerSteamId));
+
+		Assert.AreEqual("Ken scored 2 4ks", embed.Description);
+	}
+
+	[TestMethod]
+	public void FallsBackToFiveMvps() {
+		LeetifyMatch match = SampleMatch();
+		match.Stats![1].Mvps = 5;
+		match.Stats[2].Mvps = 4;
+
+		DiscordEmbed embed = SingleEmbed(MatchReport.Create(MatchUrl, match, ViewerSteamId));
+
+		Assert.AreEqual("Ken earned 5 MVPs", embed.Description);
+	}
+
+	[TestMethod]
+	public void IgnoresFourMvps() {
+		LeetifyMatch match = SampleMatch();
+		match.Stats![1].Mvps = 4;
+
+		DiscordEmbed embed = SingleEmbed(MatchReport.Create(MatchUrl, match, ViewerSteamId));
+
+		Assert.IsNull(embed.Description);
+	}
+
+	[TestMethod]
+	public void KeepsHighlightsToFriendsAndTheViewer() {
+		LeetifyMatch match = SampleMatch();
+		match.Stats![2].Multi5k = 1;
+		match.Stats[1].Steam64Id = "76561197960265731";
+		match.Stats[1].Multi4k = 1;
+
+		DiscordEmbed embed = SingleEmbed(MatchReport.Create(MatchUrl, match, ViewerSteamId, static steamId => steamId == 76561197960265731));
+
+		Assert.AreEqual("Ken scored a 4k", embed.Description);
+	}
+
+	[TestMethod]
+	public void KeepsTheViewersOwnHighlight() {
+		LeetifyMatch match = SampleMatch();
+		match.Stats![0].Multi4k = 1;
+		match.Stats[2].Multi5k = 1;
+
+		DiscordEmbed embed = SingleEmbed(MatchReport.Create(MatchUrl, match, ViewerSteamId, static _ => false));
+
+		Assert.AreEqual("*Nova* scored a 4k", embed.Description);
+	}
+
+	[TestMethod]
+	public void OmitsAHighlightThatBelongsToNobodyListed() {
+		LeetifyMatch match = SampleMatch();
+		match.Stats![2].Multi5k = 1;
+		match.Stats[1].Mvps = 6;
+
+		DiscordEmbed embed = SingleEmbed(MatchReport.Create(MatchUrl, match, ViewerSteamId, static _ => false));
+
+		Assert.IsNull(embed.Description);
 	}
 
 	private static LeetifyMatch SampleMatch() => new() {
@@ -191,13 +287,13 @@ public sealed class MatchReportTests {
 			new TeamScore { TeamNumber = 3, Score = 13 }
 		],
 		Stats = [
-			new PlayerStats { Name = "Nova", Steam64Id = "76561197960265729", InitialTeamNumber = 3, LeetifyRating = 0.1232 },
-			new PlayerStats { Name = "Ken", InitialTeamNumber = 3, LeetifyRating = 0.05 },
-			new PlayerStats { Name = "Mira", InitialTeamNumber = 3, LeetifyRating = 0.01 },
-			new PlayerStats { Name = "Lux", InitialTeamNumber = 3, LeetifyRating = -0.01 },
-			new PlayerStats { Name = "Ren", InitialTeamNumber = 3, LeetifyRating = -0.04 },
-			new PlayerStats { Name = "Ash", Steam64Id = "76561197960265730", InitialTeamNumber = 2, LeetifyRating = -0.0218 },
-			new PlayerStats { Name = "S1mple", InitialTeamNumber = 2, LeetifyRating = 0.2 }
+			new PlayerStats { Name = "Nova", Steam64Id = "76561197960265729", InitialTeamNumber = 3, LeetifyRating = 0.1232, Dpr = 80 },
+			new PlayerStats { Name = "Ken", InitialTeamNumber = 3, LeetifyRating = 0.05, Dpr = 70.5 },
+			new PlayerStats { Name = "Mira", InitialTeamNumber = 3, LeetifyRating = 0.01, Dpr = 60 },
+			new PlayerStats { Name = "Lux", InitialTeamNumber = 3, LeetifyRating = -0.01, Dpr = 50 },
+			new PlayerStats { Name = "Ren", InitialTeamNumber = 3, LeetifyRating = -0.04, Dpr = 40 },
+			new PlayerStats { Name = "Ash", Steam64Id = "76561197960265730", InitialTeamNumber = 2, LeetifyRating = -0.0218, Dpr = 30.2 },
+			new PlayerStats { Name = "S1mple", InitialTeamNumber = 2, LeetifyRating = 0.2, Dpr = 100 }
 		]
 	};
 
